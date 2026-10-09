@@ -1,10 +1,51 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# --- Environment & Secrets ---
+.env
+.env.*
+*.env
 
-# Virtual environments
-.venv
+# --- Python & Bytecode ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+sdist/
+wheels/
+
+# --- Virtual Environments & Package Managers ---
+# Covers standard venv, .venv, and uv environments/caches
+.venv/
+env/
+venv/
+ENV/
+.uv/
+
+# --- Database & Local Storage ---
+*.sqlite3
+*.db
+*.sqlite
+data/
+
+# --- Testing & Code Coverage ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+/.tox/
+
+# --- IDEs & Editors (VS Code, PyCharm, Neovim) ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+.vim/
+
+# --- OS Specifics ---
+.DS_Store
+Thumbs.db

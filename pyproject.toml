@@ -6,4 +6,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.141.1",
+    "psycopg>=3.3.6",
+    "pwdlib[argon2]>=0.3.1",
+    "pyjwt>=2.15.1",
+    "sqlalchemy>=2.0.54",
 ]

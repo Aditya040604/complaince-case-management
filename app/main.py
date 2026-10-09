@@ -1,8 +1,16 @@
-from fastapi import FastAPI, status, HTTPException, Path
-from pydantic import BaseModel
+from fastapi import FastAPI, status, HTTPException, Path, Depends
+from pydantic import BaseModel, ConfigDict
 from enum import Enum
 from typing import Annotated
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
+from app.database import get_db
+from app.models.case import Case as CaseModel
+from app.auth.routes import router as auth_router
+
+
+DBSession = Annotated[Session, Depends(get_db)]
 
 # ---- Models ----
 class Case(BaseModel):
@@ -15,25 +23,20 @@ class CaseStatus(str, Enum):
     IN_PROGRESS = "In Progress"
     CLOSED = "Closed"
 
-
 class CaseStatusUpdate(BaseModel):
     status: CaseStatus
 
-
-
 class CaseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     customer_name: str
     issue: str
     risk: str
     id: int
     status: CaseStatus
 
-
-
-
-
 # --- FastAPI-----
 app = FastAPI()
+app.include_router(auth_router)
 
 """  
 POST   /cases          → Create a case
@@ -44,56 +47,58 @@ DELETE /cases/{id}     → Delete a case
 
 """
 
-cases = [
-    {
-        "id": 1,
-        "customer_name": "Aditya",
-        "issue": "Suspicious transaction",
-        "risk": "High",
-        "status": "Open"
-
-    }
-
-]
-
 
 @app.get("/")
 def read_root():
     return {"message": "Compliance management system"}
 
-@app.get("/cases")
-def get_all_cases():
+@app.get("/cases", response_model=list[CaseResponse])
+def get_all_cases(db: DBSession):
+    statement = select(CaseModel)
+    result = db.execute(statement)
+    cases = result.scalars().all()
     return cases
+    
 
 @app.get("/cases/{case_id}", response_model=CaseResponse)
-def get_case(case_id: Annotated[int, Path(gt=0)]) -> CaseResponse:
+def get_case(case_id: Annotated[int, Path(gt=0)], db: DBSession) -> CaseResponse:
    
-    for case in cases:
-        if case.get("id") == case_id:
-            return case
+    statement = select(CaseModel).where(CaseModel.id == case_id)
+    result = db.execute(statement)
+    case = result.scalar_one_or_none()
     
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
-   
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
+    return case
+  
 
 
 @app.post("/cases", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
-def create_case(case: Case) -> CaseResponse:
-    id = max(case["id"] for case in cases) + 1
-    status = "Open"
-    data = {**case.model_dump(), "id": id, "status": status}
-    cases.append(data)
-    return data
+def create_case(case: Case, db: DBSession) -> CaseResponse:
+    db_case = CaseModel(
+        customer_name=case.customer_name,
+        issue=case.issue,
+        risk=case.risk,
+        status="Open"
+    )
+    db.add(db_case)
+    db.commit()
+    db.refresh(db_case)
+
+    return db_case
 
 @app.patch("/cases/{case_id}/status", response_model=CaseResponse, status_code=status.HTTP_200_OK)
-def update_status(case_id: Annotated[int, Path(gt=0)], updated_status: CaseStatusUpdate) -> CaseResponse:
-    for case in cases:
-        if case.get('id') == case_id:
-            data = updated_status.model_dump()
-            case.update(**data)
-            return case
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
+def update_case_status(case_id: Annotated[int, Path(gt=0)], db: DBSession ,payload: CaseStatusUpdate) -> CaseResponse:
+    stmt = select(CaseModel).where(CaseModel.id == case_id)
+    case = db.scalars(stmt).first()
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
+    try:
+        case.status = payload.status.value
+        db.commit()
+        db.refresh(case)
+    except:
+        db.rollback()
+        raise
+    return case
 
-
-# @app.get("/items/{item_id}")
-# def read_item(item_id: int, q: str | None = None):
-#     return {"item_id": item_id, "q": q}
