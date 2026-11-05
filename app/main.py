@@ -8,9 +8,14 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.case import Case as CaseModel
 from app.auth.routes import router as auth_router
+from app.auth.jwt import get_current_user
+from app.models.user import User
+from app.auth.permissions import require_permission
+
 
 
 DBSession = Annotated[Session, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 # ---- Models ----
 class Case(BaseModel):
@@ -52,7 +57,11 @@ DELETE /cases/{id}     → Delete a case
 def read_root():
     return {"message": "Compliance management system"}
 
-@app.get("/cases", response_model=list[CaseResponse])
+@app.get("/cases", 
+         dependencies=[
+             Depends(require_permission("cases:read"))
+         ]
+         ,response_model=list[CaseResponse])
 def get_all_cases(db: DBSession):
     statement = select(CaseModel)
     result = db.execute(statement)
@@ -60,7 +69,10 @@ def get_all_cases(db: DBSession):
     return cases
     
 
-@app.get("/cases/{case_id}", response_model=CaseResponse)
+@app.get("/cases/{case_id}" , 
+         dependencies=[
+             Depends(require_permission("cases:read"))
+         ], response_model=CaseResponse)
 def get_case(case_id: Annotated[int, Path(gt=0)], db: DBSession) -> CaseResponse:
    
     statement = select(CaseModel).where(CaseModel.id == case_id)
@@ -73,7 +85,11 @@ def get_case(case_id: Annotated[int, Path(gt=0)], db: DBSession) -> CaseResponse
   
 
 
-@app.post("/cases", response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/cases", 
+          dependencies=[
+              Depends(require_permission("cases:create"))
+          ]
+          ,response_model=CaseResponse, status_code=status.HTTP_201_CREATED)
 def create_case(case: Case, db: DBSession) -> CaseResponse:
     db_case = CaseModel(
         customer_name=case.customer_name,
@@ -102,3 +118,11 @@ def update_case_status(case_id: Annotated[int, Path(gt=0)], db: DBSession ,paylo
         raise
     return case
 
+@app.get("/auth/me")
+def read_current_user(current_user: CurrentUser):
+    return {
+        "id": current_user.id,
+        "user_name": current_user.user_name,
+        "is_active": current_user.is_active
+
+    }

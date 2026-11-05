@@ -240,6 +240,7 @@ dependencies = [
     { name = "psycopg" },
     { name = "pwdlib", extra = ["argon2"] },
     { name = "pyjwt" },
+    { name = "python-multipart" },
     { name = "sqlalchemy" },
 ]
 
@@ -249,6 +250,7 @@ requires-dist = [
     { name = "psycopg", specifier = ">=3.3.6" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.3.1" },
     { name = "pyjwt", specifier = ">=2.15.1" },
+    { name = "python-multipart", specifier = ">=0.0.32" },
     { name = "sqlalchemy", specifier = ">=2.0.54" },
 ]
 
