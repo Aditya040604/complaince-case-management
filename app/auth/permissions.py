@@ -12,20 +12,28 @@ from app.models.role_permission import role_permissions
 DBSession = Annotated[Session, Depends(get_db)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
+def has_permission(db: Session, user: User,permission_name: str) -> bool:
+    statement = (
+        select(Permission.id)
+        .join(
+            role_permissions,
+            role_permissions.c.permission_id == Permission.id
+        )
+        .where(
+            role_permissions.c.role_id == user.role_id,
+            Permission.name == permission_name
+        )
+    )
+    return db.scalar(statement) is not None
+
+
+
 def require_permission(permission_name: str):
     def permission_checker(
             db: DBSession,
             current_user: CurrentUser
     ):
-        statement = (
-            select(Permission.id)
-            .join(role_permissions, role_permissions.c.permission_id == Permission.id)
-            .where(role_permissions.c.role_id == current_user.role_id, 
-                   Permission.name == permission_name)
-                          )
-        permission_id = db.scalar(statement)
-
-        if permission_id is None:
-             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                 detail="You don't have permission to perform this action")
+        if not has_permission(db, current_user, permission_name):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="You don't have permission to perform this action")
     return permission_checker

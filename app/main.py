@@ -10,7 +10,7 @@ from app.models.case import Case as CaseModel
 from app.auth.routes import router as auth_router
 from app.auth.jwt import get_current_user
 from app.models.user import User
-from app.auth.permissions import require_permission
+from app.auth.permissions import require_permission, has_permission
 
 
 
@@ -104,16 +104,39 @@ def create_case(case: Case, db: DBSession) -> CaseResponse:
     return db_case
 
 @app.patch("/cases/{case_id}/status", response_model=CaseResponse, status_code=status.HTTP_200_OK)
-def update_case_status(case_id: Annotated[int, Path(gt=0)], db: DBSession ,payload: CaseStatusUpdate) -> CaseResponse:
-    stmt = select(CaseModel).where(CaseModel.id == case_id)
-    case = db.scalars(stmt).first()
+def update_case_status(case_id: Annotated[int, Path(gt=0)], db: DBSession, current_user: CurrentUser,payload: CaseStatusUpdate) -> CaseResponse:
+    # 1. Retrive the case
+    case = db.get(CaseModel, case_id)
     if case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Case with ID {case_id} not found.")
+    # 2. Determine required permission
+    allowed_transitions = {
+        CaseStatus.OPEN: {
+            CaseStatus.IN_PROGRESS,
+            CaseStatus.CLOSED
+        },
+        CaseStatus.IN_PROGRESS: {
+            CaseStatus.CLOSED
+        },
+        CaseStatus.CLOSED: set()
+    }
+    current_status = CaseStatus(case.status)
+    if payload.status not in allowed_transitions[current_status]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid case status transition.")
+    
+    if payload.status == CaseStatus.CLOSED:
+        required_permission = "cases:close"
+    else:
+        required_permission = "cases:update"
+    # 3. Check permission
+    if not has_permission(db, current_user, required_permission):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have permission to perform this action.")
+  
     try:
         case.status = payload.status.value
         db.commit()
         db.refresh(case)
-    except:
+    except Exception:
         db.rollback()
         raise
     return case
