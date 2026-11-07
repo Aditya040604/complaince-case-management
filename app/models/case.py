@@ -1,6 +1,7 @@
-from sqlalchemy import String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+from app.models.user import User
 
 
 
@@ -24,5 +25,14 @@ class Case(Base):
     issue: Mapped[str] = mapped_column(String(255))
     risk: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20))
+    assigned_to: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=True
+    )
+    assigned_user: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[assigned_to]
+        
+    )
 
 
